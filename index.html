@@ -64,6 +64,7 @@
   .row .note { display: block; font-size: 6.6pt; color: var(--muted); font-weight: 500; letter-spacing: .3px; margin-top: 1px; }
   .row.total { background: #EEF6EC; border-top: 1px solid var(--green); }
   .row.total .k, .row.total .v { font-weight: 700; }
+  .row.liq { border-top: 1px solid var(--line); }
 
   /* Banner */
   .banner { display: grid; grid-template-columns: 1fr 1fr; margin-top: 16px;
@@ -111,8 +112,11 @@ input, select { width: 100%; padding: 7px 9px; font-size: 13px; font-family: inh
 input:focus, select:focus { outline: 2px solid #60B654; outline-offset: -1px; border-color: #60B654; }
 input.bad { border-color: #C0392B; background: #FDF3F2; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.btns { position: sticky; bottom: 0; background: #fff; padding-top: 14px; margin-top: 18px;
+.btns { background: #fff; padding-top: 14px; margin-top: 18px;
   border-top: 1px solid #E4E7EE; display: grid; gap: 8px; }
+label .opt { display: inline-block; font-size: 9px; letter-spacing: .6px; text-transform: uppercase;
+  color: #8A90A0; background: #F1F3F7; border-radius: 3px; padding: 1px 5px; margin-left: 4px;
+  vertical-align: middle; font-weight: 700; }
 button { padding: 11px; font-size: 13px; font-weight: 700; font-family: inherit; border: 0; border-radius: 5px;
   cursor: pointer; letter-spacing: .4px; }
 button.primary { background: #60B654; color: #fff; }
@@ -124,13 +128,41 @@ button.ghost:hover { background: #E4E7EE; }
 .stage { padding: 24px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; }
 .sheetbox { transform-origin: top center; box-shadow: 0 6px 26px rgba(20,25,45,.16); background: #fff; }
 
+/* ===== RESPONSIVE ===== */
+@media (max-width: 980px) {
+  .app-wrap { grid-template-columns: 1fr; min-height: 0; }
+  .panel { max-height: none; overflow: visible; border-right: 0;
+    border-bottom: 1px solid #D8DCE4; padding: 18px 16px 26px; }
+  .panel img.brand { height: 40px; }
+  .panel h2 { font-size: 18px; }
+  .panel .tag { font-size: 13px; margin-bottom: 18px; }
+  .fieldset > legend { font-size: 11px; }
+  label { font-size: 13px; margin: 14px 0 5px; }
+  label .hint { font-size: 12px; }
+  input, select { font-size: 16px; padding: 11px 12px; border-radius: 6px; }
+  button { padding: 15px; font-size: 16px; border-radius: 7px; }
+  .err { font-size: 13px; padding: 10px 12px; }
+  .stage { padding: 14px 10px 28px; }
+  .stage-label { display: block; }
+}
+@media (max-width: 520px) {
+  .two { grid-template-columns: 1fr; gap: 0; }
+  .panel { padding: 16px 13px 24px; }
+  .stage { padding: 10px 6px 24px; }
+}
+.stage-label { display: none; font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase;
+  color: #8A90A0; font-weight: 800; margin: 0 0 10px; text-align: center; }
+.stage-inner { width: 100%; display: flex; flex-direction: column; align-items: center; }
+
 @media print {
   @page { size: Letter; margin: 0; }
   body.app { background: #fff; }
   .panel, .stage-note { display: none !important; }
   .app-wrap { display: block; }
   .stage { padding: 0; display: block; overflow: visible; }
-  .sheetbox { transform: none !important; box-shadow: none; }
+  .stage-inner { display: block; }
+  .stage-label { display: none !important; }
+  .sheetbox { transform: none !important; box-shadow: none; margin-bottom: 0 !important; }
 }
 </style>
 </head>
@@ -192,6 +224,9 @@ button.ghost:hover { background: #E4E7EE; }
         <label>Prepayment Penalty <span class="req">*</span><input id="prepay" value="None"></label>
       </div>
       <label>Est. Closing Costs (% of total loan)<input id="closingPct" value="3.5"></label>
+      <label>Required Liquidity in Reserves <span class="opt">optional</span>
+        <span class="hint">Leave blank to omit this line from the term sheet</span>
+        <input id="liquidity" inputmode="decimal" placeholder="$50,000"></label>
     </fieldset>
 
     <div class="err" id="err"></div>
@@ -203,6 +238,8 @@ button.ghost:hover { background: #E4E7EE; }
   </form>
 
   <div class="stage">
+    <div class="stage-inner">
+    <div class="stage-label">Live Preview</div>
     <div class="sheetbox" id="sheetbox">
       
 <div class="page">
@@ -268,6 +305,7 @@ button.ghost:hover { background: #E4E7EE; }
         <div class="row alt"><span class="k">Origination Fee</span><span class="v"><span data-f="ORIG_AMT"></span></span></div>
         <div class="row"><span class="k">Est. Closing Costs</span><span class="v"><span data-f="CLOSING"></span></span></div>
         <div class="row total"><span class="k">Estimated Cash to Close</span><span class="v"><span data-f="CASH_TO_CLOSE"></span></span></div>
+        <div class="row liq liq-row"><span class="k">Required Liquidity in Reserves</span><span class="v"><span data-f="LIQUIDITY"></span></span></div>
       </div>
     </div>
   </div>
@@ -294,6 +332,7 @@ button.ghost:hover { background: #E4E7EE; }
 
 </div>
 
+    </div>
     </div>
   </div>
 </div>
@@ -363,6 +402,9 @@ function collect() {
   const cpct = num($("closingPct").value) / 100;
   const closing = total * cpct;
 
+  const liqRaw = String($("liquidity").value).trim();
+  const hasLiq = liqRaw !== "" && num(liqRaw) > 0;
+
   const cp = num($("closingPct").value);
   const fine = `Closing costs is an estimated figure of ${cp}% of the total loan amount. Please note these numbers are not final and calculates an estimation for items such as homeowners insurance, property tax, title fees, processing fees, etc. Final figures are provided in the closing disclosure.`;
 
@@ -396,6 +438,8 @@ function collect() {
     DOWN: money(down),
     CLOSING: money(closing),
     CASH_TO_CLOSE: money((hasRehab ? down : 0) + origAmt + closing),
+    LIQUIDITY: hasLiq ? money(num(liqRaw)) : "",
+    LIQ_HIDE: !hasLiq,
     FINE_PRINT: fine
   };
 }
@@ -412,6 +456,9 @@ function paint() {
   });
   document.querySelectorAll("#sheetbox .down-row").forEach(el => {
     el.style.display = c.DOWN_HIDE ? "none" : "";
+  });
+  document.querySelectorAll("#sheetbox .liq-row").forEach(el => {
+    el.style.display = c.LIQ_HIDE ? "none" : "";
   });
   $("rehabGroup").style.display = c.REHAB_HIDE ? "none" : "";
   $("lblPP").firstChild.nodeValue = c.PP_LABEL + " ";
@@ -450,10 +497,12 @@ function validate() {
 
 function fitPreview() {
   const stage = document.querySelector(".stage");
-  const avail = stage.clientWidth - 48;
+  const pad = window.innerWidth <= 520 ? 12 : (window.innerWidth <= 980 ? 20 : 48);
+  const avail = stage.clientWidth - pad;
   const scale = Math.min(1, avail / (8.5 * 96));
-  $("sheetbox").style.transform = "scale(" + scale + ")";
-  $("sheetbox").style.marginBottom = (scale < 1 ? -(11 * 96 * (1 - scale)) : 0) + "px";
+  const box = $("sheetbox");
+  box.style.transform = "scale(" + scale + ")";
+  box.style.marginBottom = (scale < 1 ? -(11 * 96 * (1 - scale)) : 0) + "px";
 }
 
 document.querySelectorAll("#f input, #f select").forEach(el => {
